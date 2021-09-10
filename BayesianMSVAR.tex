@@ -1,0 +1,544 @@
+\documentclass[final,3p,authoryear]{elsarticle}
+
+%\usepackage{float}
+\usepackage[none]{hyphenat}
+\usepackage{amsmath,amsfonts,amssymb,amsthm,pxfonts,dsfont}
+\usepackage[ansinew]{inputenc}
+\usepackage{setspace}
+\usepackage{natbib}
+\usepackage[bookmarks, colorlinks, pdfauthor={Matthieu Droumaguet, Anders Warne and Tomasz Wozniak}]{hyperref}
+%\hypersetup{linkcolor=blue,citecolor=blue,filecolor=black,urlcolor=blue} 
+\usepackage{graphicx} 
+\usepackage{color}
+\usepackage{geometry}
+%\usepackage{multirow}
+%\usepackage{booktabs}
+%\usepackage{longtable,lscape,ltcaption} 
+%\usepackage{rotating} 
+
+%\usepackage{soul}
+%
+%\setstretch{2}
+%\geometry{margin=2cm}
+%___________________________________________________________________________________________________
+%
+% Document begins
+%___________________________________________________________________________________________________
+
+\begin{document}
+
+\biboptions{longnamesfirst,semicolon}
+%\theoremstyle{remark}
+\newtheorem{thm}{Theorem}
+\newtheorem{cl}{Corollary}
+\newtheorem{prop}{Proposition}
+\newtheorem{lm}{Lemma}
+\newdefinition{df}{Definition}
+\newdefinition{ex}{Example}
+\newdefinition{as}{Assumption}
+\newdefinition{pr}{Property}
+\newdefinition{rs}{Restriction}
+\newdefinition{al}{Algorithm}
+
+
+
+\begin{frontmatter}
+
+\title{Bayesian Estimation and Inference for  Markov-Switching VARs in R}
+
+\author[eui]{Matthieu Droumaguet}
+\author[ecb]{Anders Warne}
+\author[um]{Tomasz Wo\'zniak}%\corref{cor1}}
+
+%\cortext[cor1]{,  website: \url{http://bit.ly/tomaszwozniak}\\ \linebreak
+%\vspace{0.3cm}}
+\address[eui]{Department of Economics, European University Institute}
+\address[ecb]{Directorate General Research, European Central Bank}
+\address[um]{Department of Economics, University of Melbourne\\[2ex]
+email: \href{mailto:tomasz.wozniak@unimelb.edu.au}{tomasz.wozniak@unimelb.edu.au}\\[4ex]
+\textcopyright{} 2016 Matthieu Droumaguet, Anders Warne, \& Tomasz Wo\'zniak
+}
+
+
+
+\begin{abstract}
+A block Metropolis-Hastings algorithm for the Bayesian estimation of the Markov-switching Vector Autoregressive models with restrictions for Granger noncausality is provided, as well as an appropriate estimator for the marginal data density. The codes are available under the GNU General Public License v3.0. To refer to the codes in publications, please, cite the following paper:
+
+\bigskip\noindent Droumaguet, M., Warne, A., Wo\'zniak, T. (2017) Granger Causality and Regime Inference in Markov-Switching VAR Models with Bayesian Methods, \emph{Journal of Applied Econometrics}, 32(4), pp. 802--818.
+\end{abstract}
+
+\begin{keyword}
+R \sep Markov-switching VARs \sep Block Metropolis-Hastings Sampler \sep Marginal Data Density
+\end{keyword}
+
+\end{frontmatter}
+
+
+\section{The Markov-switching VAR Model}\label{sec:Model} 
+
+
+\noindent
+The model under consideration is the Markov-switching Vector Autoregressive process with the restrictions for Granger noncausality. The model presented in this manuscript was used in \cite{Droumaguet2016} to make inference about Granger causality between money and income data for the U.S. The exposition in this note is based on \cite{Droumaguet2016online}. 
+
+\paragraph{Notation and model} Let $\mathbf{y}_T = (y_1,\dots,y_T)^{'}$ denote a time series of $T$ observations, where each $y_{t}$ is a $N$-variate real-valued vector for $t \in \{1,\dots,T\}$. We consider a class of parametric Markov mixture distribution models in which the stochastic process $y_t$ depends on the realizations of a hidden discrete stochastic process $s_t$ with finite state space $\{ 1,\dots,M \}$ \citep[see][]{Hamilton:1989zl}. Conditioned on the state, $s_t$, and time series up to time $t-1$, denoted by $\mathbf{y}_{t-1}$, $y_t$ follows an independent identical normal distribution. Specifically, we let:
+\begin{align}
+  y_t &= \mu_{s_t} + A_{s_t}^{(1)} y_{t-1} + \dots + A_{s_t}^{(p)} y_{t-p} + \epsilon_t, \label{eq:ConditionalMean}\\
+ \epsilon_t | s_t &\sim i.i.\mathcal{N}(\mathbf{0}, \Sigma_{s_t}),  \label{eq:epsilon1}
+\end{align} 
+for $t\in\{1,\dots,T\}$. We set the vector of initial values $\mathbf{y}_0 = (y_{p-1}, \dots, y_0)^{\prime}$ to the first $p$ observations of the available data.
+
+
+The variable $s_t$ is assumed to be an irreducible aperiodic Markov chain with $\Pr(S_0 = i|\mathbf{P}) = \mathbf{\pi}_i$, where $\mathbf{\pi} = (\pi_1,\dots,\pi_M)$ is the ergodic distribution of the Markov Switching (MS) process. Its properties are sufficiently described by the $(M\times M)$ transition probabilities matrix:
+\begin{equation}\label{eq:Pmatrix}
+  \mathbf{P} = \begin{bmatrix} p_{11} & p_{12} & \dots & p_{1M} \\ p_{21} & p_{22} & \dots & p_{2M} \\ \vdots & \vdots & \ddots & \vdots \\ p_{M1} & p_{M2} & \dots & p_{MM} \end{bmatrix},
+\end{equation} 
+in which an element, $p_{ij}$, denotes the probability of transition from state $i$ to state $j$, $ p_{ij} = \Pr(s_{t+1} = j| s_{t} = i) $. The elements of each row of matrix $\mathbf{P}$ sum to one, $ \sum_{j=1}^{M} p_{ij} = 1 $. Equations (\ref{eq:ConditionalMean})--(\ref{eq:Pmatrix}) represent a MS-VAR model with $M$ states and $p$ lags.
+
+\paragraph{Likelihood function} Let $\theta$ be a vector of size $k$, collecting parameters of the transition probabilities matrix $\mathbf{P}$ and all the state-dependent parameters of the VAR process, $\theta_{s_t}$: $\mu_{s_t}$, $A_{s_t}^{(i)}$, $\Sigma_{s_t}$, for $s_t \in\{ 1,\dots,M\}$ and $i \in\{ 1,\dots,p\}$. The complete-data likelihood function is equal to the joint sampling distribution $p(\mathbf{S}_T ,\mathbf{y}_T |\theta)$ for the complete data $(\mathbf{S}_T ,\mathbf{y}_T )$ given the parameters, where $\mathbf{S}_T = (s_0, s_1, \dots, s_T)$; see, e.g., \cite{Fruhwirth-Schnatter2006}. This likelihood is further decomposed into: 
+\begin{equation}\label{eq:CompleteData}
+  p\bigl( \mathbf{S}_T , \mathbf{y}_T \big|\theta \bigr) = p\bigl( \mathbf{y}_T \big| \mathbf{S}_T ,\theta \bigr) \Pr\bigl( \mathbf{S}_T \big| \mathbf{P} \bigr),
+\end{equation}
+where the parameters $\theta = (\theta_1 , \ldots , \theta_M , \mathbf{P})$. The two components on the right hand side of equation (\ref{eq:CompleteData}) are the same as the standard MS-VAR model of \citeauthor{Fruhwirth-Schnatter2006}~(\citeyear{Fruhwirth-Schnatter2006}, Section 11.3.1).
+
+
+
+
+
+
+
+
+
+
+
+
+\paragraph{Prior distribution}
+We assume that the prior distribution of the state-specific parameters for each state and the transition probabilities matrix are independent:
+\begin{equation}\label{eq:prior1}
+     p\bigl(\theta \bigr) = \prod_{i=1}^{M} p\bigl(\theta_i\bigr)p\bigl(\mathbf{P}\bigr).
+\end{equation} 
+For the unrestricted MS-VAR model, we assume the following prior specification. Each row of the transition probabilities matrix, $\mathbf{P}$, \emph{a priori} follows an $M$-variate Dirichlet distribution, with the $M\times1$ parameter vectors $e_m$, for $m\in\{1,\dots,M\}$. Finally, collect all of the vectors of parameters into a $M^2\times1$ vector $e=(e_1^{'},\dots,e_M^{'})^{'}$.
+
+
+Furthermore, the state-dependent parameters of the VAR process are collected in vectors 
+$$\beta_{s_t} = \biggl( \mu_{s_t}^{\prime}, \text{vec}\bigl(A_{s_t}^{(1)}\bigr)^{\prime},\dots,\text{vec}\bigl(A_{s_t}^{(p)}\bigr)^{\prime} \biggr)^{\prime},$$
+for $s_t = 1,\dots,M$. For each $s_t\in\{1,\dots,M\}$ $\beta_{s_t}$ follows \emph{a priori} a $(N+pN^2)$-variate normal distribution, with mean equal to $\mu_\beta$ and a covariance matrix $V_\beta$. Furthermore, let $B_{s_t}=\left(\mu_{s_t}, A_{s_t}^{(1)},\dots,A_{s_t}^{(p)}\right)^{'}$ be a $(1+pN)\times N$ matrix of state-specific autoregressive parameters.
+
+
+
+Let $\sigma_{s_t}$ be an two-dimensional vector of standard deviations and $\mathbf{R}_{s_t}$ a $2 \times 2$ correlation matrix. The covariance matrix of $\epsilon_t|s_t$ can now be decomposed as:
+\begin{equation}\label{eq:SigmaDecomposed}
+     \Sigma_{s_t} = \text{diag}\bigl(\sigma_{s_t}\bigr)\mathbf{R}_{s_t}\text{diag}\bigl(\sigma_{s_t}\bigr),
+\end{equation}
+Modeling covariance matrices using a decomposition into standard deviations and a correlation matrix, as in equation (\ref{eq:SigmaDecomposed}), was proposed for Bayesian inference by \cite{Barnard2000}. Each standard deviation $\sigma_{j.s_t}$ for $s_t = 1,\dots,M$ and $j=1,2$, follows a log-normal distribution, with the location parameter equal to $\mu_\sigma$ and the standard deviation parameter set to $\lambda_\sigma >0$.
+
+
+Finally, we assume that the marginal prior distribution for the below-diagonal element of the (symmetric) correlation matrix $\mathbf{R}_{s_t}$ is a uniform distribution on the interval $(-1,1)$. We collect all the standard deviations in one vector, $\sigma = (\sigma_1^{\prime},\dots,\sigma_M^{\prime})^{\prime}$, and all the unknown correlation coefficients into a vector 
+$$\mathbf{R} = (\text{vecl}(\mathbf{R}_1)^{\prime},\dots,\text{vecl}(\mathbf{R}_M)^{\prime})^{\prime},$$
+where the $\text{vecl}$ operator stacks all the lower-diagonal elements of the correlation matrix into a vector. 
+
+
+To summarize, the prior specification (\ref{eq:prior1}) now takes the detailed form of:
+\begin{equation}\label{eq:prior2}
+     p(\theta) = \prod_{i=1}^{M} p(\mathbf{P}_i)p(\beta_i)p(\mathbf{R}_i)\left( \prod_{j=1}^{N} p(\sigma_{i.j}) \right),
+\end{equation} 
+where each of the prior distributions is as assumed:
+\begin{align*}
+    \mathbf{P}_{i\cdot} &\sim \mathcal{D}_{M}(e_i) \\
+    \beta &\sim \mathcal{N}(\mu_\beta,V_\beta) \\
+    \sigma_{i.j} &\sim log\mathcal{N}(\mu_\sigma,\lambda_\sigma) \\
+    \mathbf{R}_{i.jk} &\sim \mathcal{U}(-1,1)
+\end{align*}
+for $i=1,\dots,M$ and $j,k=1,\dots,N$, and $j\neq k$.
+
+
+
+
+\section{Block Metropolis-Hastings algorithm}\label{app:BMHA}
+
+
+
+\noindent
+This section describes all the constituting blocks that form the MCMC sampler.
+
+
+\subsection{Simulating Hidden Markov Process}\label{ssec:states}
+
+
+\noindent
+The first drawn parameter is the vector representing the states of the economy, $\mathbf{S}_T$. We first use a filter and smoother \citep[see Section 11.2 of][ and references therein]{Fruhwirth-Schnatter2006} and obtain the probabilities $\Pr(s_t = i|\mathbf{y}_T , \theta^{(l-1)})$, for $t\in\{1,\dots,T\}$ and $i\in\{1,\dots,M\}$, and then draw $\mathbf{S}_T^{(l)}$, for $l^{\text{th}}$ iteration of the algorithm. For the full description of the algorithm used in this work the reader is referred to \cite{Droumaguet2012}.
+
+
+\subsection{Sampling Transition Probabilities}
+
+
+\noindent
+In this step of the MCMC sampler, we draw from the posterior distribution of the transition probabilities matrix, conditioning on the states drawn in the previous step of the current iteration, $\mathbf{P}^{(l)} \sim p(\mathbf{P}|\mathbf{S}_T^{(l)})$. \cite{Sims2008} provide a flexible analytical framework for working with restricted transition probabilities, and the reader is invited to consult Section~3 of their paper for an exhaustive description of the possibilities provided by the framework. We however limit the latitude given by the reparametrization in order to ensure  the stationarity of Markov chain $\mathbf{S}_T$.
+
+
+\paragraph{Reparametrization} The transition probabilities matrix $\mathbf{P}$ is modeled with $Q$ vectors $w_j$, $j=1,\cdots,Q$ and each of size $d_j \leq M$. Let all the elements of $w_j$ belong to the $(0,1)$ interval and sum up to one, and stack all of them into the column vector $\mathbf{w}=(w_1^{'}, \dots, w_Q^{'})^{'}$ of dimension $d=\sum_{j=1}^{Q}d_j$. Writing $\mathbf{p}=vec(\mathbf{P}^{'})$ as a $M^2$ dimensional column vector, and introducing the $(M^2 \times d)$ matrix $\mathbf{M}$, the transition matrix is decomposed as:
+\begin{equation}\label{eq:RestrictedP}
+\mathbf{p} = \mathbf{M} \mathbf{w}, 
+\end{equation} 
+where the $\mathbf{M}$ matrix is composed of the $M_{ij}$ sub-matrices of dimension $(M \times d_j)$, where $i\in\{1,\dots,M\}$, and $j\in\{1,\dots,Q\}$:
+\begin{equation}
+    \mathbf{M} = \begin{bmatrix} M_{11} & \dots & M_{1Q} \\ \vdots & \ddots & \\ M_{M1} &  & M_{MQ} \end{bmatrix},
+    \nonumber
+\end{equation} 
+where each $M_{ij}$ satisfies the following conditions:
+\begin{enumerate}
+	\item For each $(i,j)$, all elements of $M_{ij}$ are non-negative. 
+	\item $ \imath_{M}^{'} M_{ij} = \Lambda_{ij} \imath_{d_j}^{'}$, where $\Lambda_{ij}$ is the sum of the elements in any column of $M_{ij}$.
+	\item Each row of $\mathbf{M}$ has, at most, one non-zero element.
+	\item $M$ is such that $\mathbf{P}$ is irreducible: for all $j, d_j \ge 2 $.
+\end{enumerate}
+ 
+
+The first three conditions are inherited from \cite{Sims2008}, whereas the last condition assures that $\mathbf{P}$ is irreducible, forbidding the presence of an absorbing state that would render the Markov chain $\mathbf{S}_T$ non-stationary. The lack of independence of the rows of $\mathbf{P}$ is described in \citet[][Section 11.5.5]{Fruhwirth-Schnatter2006}. Once the initial state $s_0$ is drawn from the ergodic distribution $\pi$ of $\mathbf{P}$, direct MCMC sampling from the conditional posterior distribution becomes impossible. However, a Metropolis-Hastings step can be set up to circumvent this issue, since a kernel of joint posterior density of all rows is known: $p(\mathbf{P}|\mathbf{S}_T ) \propto	\pi\prod_{j=1}^Q \mathcal{D}_{d_j}(w_j)$. Hence, the proposal for transition probabilities is obtained by sampling each $w_j$ from the convenient Dirichlet distribution. We then transform the column vector $\mathbf{w}$ into our candidate matrix of transitions probabilities using equation (\ref{eq:RestrictedP}). Finally, we compute the acceptance rate before retaining or discarding the draw.
+
+
+\begin{al}\label{al:MH-P} \textit{Metropolis-Hastings step for the restricted transition matrix.}
+	\begin{enumerate}
+		\item $s_0 \sim \pi$. The initial state is drawn from the ergodic distribution of $\mathbf{P}$.
+		\item $w_j \sim \mathcal{D}_{d_j} (n_{1,j} + e_{1,j},\dots, n_{d_j,j} + e_{d_j,j} )$ for $j\in\{1,\dots, Q\}$. $n_{i,j}$ corresponds to the number of transitions from state $i$ to state $j$, counted from $\mathbf{S}_T$. The candidate transition probabilities matrix -- in the transformed notation -- are sampled from a Dirichlet distribution.
+		\item $\mathbf{P}^{new} = \mathbf{M} \mathbf{w}$. The proposal for the transitions probabilities matrix is reconstructed.
+        \item Accept $\mathbf{P}^{new}$ if $u \le (\pi^{new}/\pi^{l-1})$, where $u \sim \mathcal{U}[0,1]$. $\pi^{new}$ and $\pi^{l-1}$ are the ergodic probabilities of $s_0^{(l)}$ that are computed from $\mathbf{P}^{new}$ and $\mathbf{P}^{l-1}$ respectively.
+	\end{enumerate}
+\end{al} 
+
+
+
+\subsection{Sampling Correlation Coefficients and Standard Deviations}
+
+
+\noindent
+Adapting the approach proposed by \cite{Barnard2000} to Markov-switching models, we sample from the full conditional distribution of unrestricted and restricted covariance matrices. 
+
+
+\begin{al}\label{al:Griddy-stdev} \textit{Griddy-Gibbs for the standard deviations.} The algorithm iterates on all the standard deviation parameters $\sigma_{s_t.j}$ for $i\in\{1,\dots,N\}$ and $s_t\in\{1,\dots,M\}$. The grid is centered on the residuals' sample standard deviation $\hat{\sigma}_{s_t.i}$ and divides the interval $(\hat{\sigma}_{s_t.i} - 3 \hat{\sigma}_{\hat{\sigma}_{s_t.i}} , \hat{\sigma}_{s_t.i} + 3 \hat{\sigma}_{\hat{\sigma}_{s_t.i}}  )$ into $G$ grid points. $\hat{\sigma}_{\hat{\sigma}_{s_t.i}}$ is an estimator of the standard error of the estimator of the sample standard deviation.
+	\begin{enumerate}
+		\item  Regime-invariant standard deviations: Draw from the unknown univariate density
+		\begin{equation*}
+		 p \bigl(\sigma_{i} \big| \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma_{-i},\mathbf{R} \bigr).
+		\end{equation*}
+		 This is done by evaluating a kernel on a grid of points, using the proportionality relation, with the likelihood function times the prior: $\sigma_{i}| \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma_{-i},\mathbf{R} \propto  p( \mathbf{y}_T | \mathbf{S}_T , \theta) \cdot p(\sigma_{i})$. Reconstruct the c.d.f. from the grid through deterministic integration and sample from it.
+		\item Regime-varying standard deviations: For all regimes $s_t\in\{1,\dots,M\}$, draw from the univariate density
+		\begin{equation*}
+		 p \bigl( \sigma_{s_t.i} \big| \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma_{s_t.-i},\mathbf{R} \bigr),
+		 \end{equation*}
+	   evaluating a kernel thanks to the proportionality relation, with the likelihood function times the prior: $\sigma_{s_t.i} | \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma_{s_t.-i},\mathbf{R} \propto  p( \mathbf{y}_T | \mathbf{S}_T , \theta ) \cdot p(\sigma_{i.s_t})$. 
+	\end{enumerate}
+\end{al}   
+
+
+\begin{al}\label{al:Griddy-corr} \textit{Griddy-Gibbs for the correlations} The algorithm iterates on all the correlation parameters $\mathbf{R}_{s_t.i}$ for $i\in\{1,\dots,(N-1)N/2\}$ and $s_t\in\{1,\dots,M\}$. The marginal posterior density of each correlation coefficient is bounded by $a$ from below and $b$ from above. $a$ and $b$ are computed so that although correlation coefficients are sampled from the marginal posterior distributions the resulting correlation matrix is positive definite See \cite{Barnard2000} for the algorithm determining $a$ and $b$ for each $\mathbf{R}_{s_t.i}$. The grid divides interval $(a,b)$ into $G$ grid points. 
+	\begin{enumerate}
+		\item  Depending on the restriction scheme, set correlation parameters to 0. 
+		\item  Regime-invariant correlations: Draw from the univariate density 
+		\begin{equation*}
+		p \bigl( \mathbf{R}_{i} \big| \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma,\mathbf{R}_{-i} \bigr),
+		\end{equation*}
+	   evaluating a kernel thanks to the proportionality relation, with the likelihood function times the prior: $\mathbf{R}_{i}| \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma,\mathbf{R}_{-i} \propto  p( \mathbf{y}_T | \mathbf{S}_T , \theta) \cdot p(\mathbf{R}_{i})$.
+		\item Regime-varying correlations: For all regimes $s_t\in\{1,\dots,M\}$, draw from the univariate density
+		\begin{equation*}
+		p \bigl( \mathbf{R}_{s_t.i} \big| \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma,\mathbf{R}_{s_t.-i} \bigr),
+		\end{equation*}
+		evaluating a kernel thanks to the proportionality relation, with the likelihood function times the prior: $\mathbf{R}_{s_t.-i} | \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \beta, \sigma,\mathbf{R}_{s_t.-i} \propto  p( \mathbf{y}_T | \mathbf{S}_T , \theta ) \cdot p(\mathbf{R}_{s_t.i})$.  
+	\end{enumerate}
+\end{al}   
+
+In their empirical application \cite{Droumaguet2016} reported the results for fifty grid points, $G=50$, for each of the standard deviation and the correlation coefficients, however, the results were practically the same also for $G=30$.
+
+
+
+\subsection{Sampling Vector Autoregressive Parameters}\label{ssec:var}
+
+
+\noindent
+Finally, we draw the state-dependent autoregressive parameters, $\beta_{s_t}$ for $s_t\in\{ 1,\dots,M\}$. The Bayesian parameter estimation of finite mixtures of regression models when the realizations of states is known has been precisely covered in \citet[Section 8.4.3]{Fruhwirth-Schnatter2006}. The procedure consists of estimating all the regression coefficients simultaneously by stacking them into $\beta = ( \beta_0, \beta_1, \dots, \beta_M) $, where $\beta_0$ is a common regression parameter for each regime, and hence is useful for the imposing of restrictions of state invariance for the autoregressive parameters. The regression model becomes:
+\begin{equation}
+  y_t = Z_t \beta_0 + Z_t D_{i.1} \beta_1 + \dots + Z_t D_{i.M} \beta_M  + \epsilon_t ,
+\end{equation}
+\begin{equation} 
+\epsilon_t \sim i.i.\mathcal{N}(\mathbf{0}, \Sigma_{s_t}) .
+\end{equation} 
+
+We have here introduced the $D_{i.s_t}$, which are dummy variables taking the value 1 when the regime occurs and set to 0 otherwise. A transformation of the regressors $Z_T$ also has to be performed in order to allow for different coefficients on the dependent variables, for instance to impose zero restrictions on parameters. In the context of VARs, \citet[Section 2.2.3]{koop2010bayesian} detail a convenient notation that stacks all the regression coefficients on a diagonal matrix for every equation. We adapt this notation by stacking all the regression coefficients for all the states on diagonal matrix. If $z_{n.s_t.t}$ corresponds to the row vector of $1+Np$ independent variables for equation $n$, state $s_t$ (starting at 0 for regime-invariant parameters), and at time $t$, the stacked regressor $Z_t$ will be of the following form:
+\begin{equation}   
+  \setcounter{MaxMatrixCols}{11}       
+  Z_t = \text{diag}\bigl( z_{1.0.t}, \dots , z_{N.0.t}, z_{1.1.t}, \dots , z_{N.1.t},\dots , z_{1.M.t}, \dots , z_{N.M.t} \bigr) .
+    \nonumber
+\end{equation}  
+This notation enables the restriction of each parameter, by simply setting $z_{n.s_t.t}$ to 0 where desired.
+
+
+
+\begin{al}\label{al:beta} \textit{Sampling the autoregressive parameters.} We assume normal prior for $\beta$, i.e. $\beta \sim \mathcal{N}(\mathbf{0}, V_{\beta}) $ .
+	\begin{enumerate}
+		\item For all $Z_t$s, impose restrictions by setting $z_{n,s_t,t}$ to zero accordingly.
+        \item $\beta | \mathbf{y}_T , \mathbf{S}_T , \mathbf{P}, \sigma,\mathbf{R} \sim  \mathcal{N}(\overline{\beta}, \overline{V_{\beta}})$. Sample $\beta$ from the conditional normal posterior distribution, with the following parameters:
+\begin{equation}
+  \overline{V_{\beta}} = \left( V^{-1}_{\beta} + \sum_{t=1}^{T} Z^{'}_t \Sigma_{s_t}^{-1} Z_t \right)^{-1}            
+    \nonumber
+\end{equation} and
+\begin{equation}
+  \overline{\beta} = \overline{V_{\beta}} \left(  \sum_{t=1}^{T} Z^{'}_t \Sigma_{s_t}^{-1} y_t\right).
+    \nonumber
+\end{equation} 
+	\end{enumerate}
+\end{al}             
+
+
+
+
+
+\section{Estimation of marginal data densities}
+
+\noindent An appropriate marginal data density estimator used for the MS-VAR model with restrictions described above is the Modified Harmonic Mean estimator proposed by \cite{Geweke1999,Geweke2005}. See \cite{Droumaguet2012} for some more details regarding the computational details for the estimator for the MS-VAR models.
+
+
+
+
+
+
+
+
+% BIBLIOGRAPHY
+\bibliographystyle{model5-names}
+\bibliography{bib-causality} 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\newpage
+%\section*{R functions}\label{sec:code}
+%
+%\noindent File \texttt{BayesianECCCGARCH.R} includes, amongst others, two utility functions that are described below.
+
+\small
+\bigskip
+\begin{center}
+\rule{15cm}{.1pt}\\
+
+\bigskip\begin{tabular}{p{3.5cm} l}
+\texttt{G.MSBVAR.griddy} & \textit{Bayesian estimation of restricted MS-VAR models} 
+\end{tabular}
+
+\smallskip
+\rule{15cm}{.1pt}
+\end{center}
+
+\bigskip\noindent\textbf{Description}
+\begin{quote}
+A block Metropolis-Hasting sampler for MS($M$)-VAR($p$) models.
+\end{quote}
+
+
+\bigskip\noindent\textbf{Usage}
+\begin{quote}
+\begin{verbatim}
+G.MSBVAR.griddy(N, h, priors, restrictions, starting.values, 
+            debug=FALSE, print.iterations=50)
+\end{verbatim}
+\end{quote}
+
+\bigskip\noindent\textbf{Arguments}
+\begin{quote}
+\begin{tabular}{p{3cm}p{10cm}}
+\texttt{N} & A positive integer specifying the number of iterations of the sampling algorithm. \\
+&\\
+\texttt{h}& A  positive integer specifying the forecast horizon.\\
+&\\
+\texttt{priors}& A list of objects specifying the prior distributions. It contains the following objects:
+\texttt{Beta.bar} -- a $N+pN^2\times 1$ matrix of the normal prior mean $\mu_\beta$;
+\texttt{V.Beta.bar.m1} -- a $N+pN^2\times N+pN^2$ covariance matrix of the normal prior $V_\beta$;
+\texttt{S.mean} -- a scalar specifying the location parameter of the log-normal prior $\mu_\sigma$;
+\texttt{S.sd} -- a scalar specifying the standard deviation parameter of the log-normal prior $\lambda_\sigma$;
+\texttt{w} -- a $M^2\times 1$ matrix of the parameters of the Dirichlet distribution $e$.
+\\
+&\\
+\texttt{restrictions}& A list of objects specifying the restrictions on the parameters. It contains the following objects: \texttt{Beta.0}, \texttt{Beta.St}, \texttt{Sigma.0}, \texttt{Sigma.St}, \texttt{M}, \texttt{dj} that are specified below.
+\linebreak \texttt{Beta.0} -- a $(1+pN)\times N$ matrix specifying which regime-invariant autoregressive parameters of matrix $B_{s_t}$ should be estimated, where value 1 is assigned to parameters to be  estimated and value 0 to parameters not to be estimated. 
+\texttt{Beta.St} -- a list of $M$ $(1+pN)\times N$ matrices specifying which regime-dependent autoregressive parameters of matrix $B_{s_t}$ should be estimated, where value 1 is assigned to parameters to be  estimated and value 0 to parameters not to be estimated.  
+\texttt{Sigma.0} -- a $N\times N$ matrix specifying which regime-invariant elements of the covariance matrix $\Sigma_{s_t}$ should be estimated, where value 1 is assigned to parameters to be  estimated and value 0 to parameters not to be estimated. 
+\texttt{Sigma.St} -- a list of $M$$N\times N$ matrices specifying which regime-dependent elements of the covariance matrices $\Sigma_{s_t}$ should be estimated, where value 1 is assigned to parameters to be  estimated and value 0 to parameters not to be estimated. 
+\texttt{M} -- a $M^2\times d$ matrix $\mathbf{M}$ setting the restrictions on the vectorized version of the transition probability matrix $\mathbf{p}$. 
+\texttt{dj} -- a vector of length $Q$ specifying the values of $d_j$ for $j\in\{1,\dots,Q\}$.
+\end{tabular}
+\end{quote}
+
+\begin{quote}
+\begin{tabular}{p{3cm}p{10cm}}
+\texttt{starting.values}& A list of objects specifying the starting values of the parameters of the model from which the algorithm is initiated. It consists of the following objects: \texttt{Y}, \texttt{U}, \texttt{xi}, \texttt{Beta}, \texttt{Beta.0}, \texttt{Beta.St}, \texttt{Sigma}, \texttt{PR\_TR}, \texttt{w}, \texttt{S}, \texttt{R}, \texttt{G} that are specified below.
+\linebreak
+\texttt{Y} -- a $(T+p)\times N$ matrix of data. 
+\texttt{U} - a $T\times N \times M$ array of state-specific error terms evaluated at the starting values of the parameters.
+\texttt{xi} -- a $M\times T$ matrix specifying the realizations of the regimes taking a value of 1 when the regime occurs and 0 if it does not occur in a particular period. This matrix may be filled with values \texttt{NA} for the initialization of the algorithm.
+\texttt{Beta} -- a $(1+pN)\times N \times M$ array collecting the regime-dependent and regime-invariant starting values for parameters $B_{s_t}$.
+\texttt{Beta.0} -- a $(1+pN)\times N$ matrix of the starting values for the regime-invariant parameters $B_{s_t}$.
+\texttt{Beta.St} -- a $(1+pN)\times N \times M$ array collecting the starting values of the regime-dependent parameters $B_{s_t}$.
+\texttt{Sigma} -- a $N\times N \times M$ array collecting the regime-dependent and regime-invariant starting values for parameters $\Sigma_{s_t}$.
+\texttt{S} -- a $N\times M$ matrix of the starting values for the regime-dependent standard deviations $\sigma_{s_t}$.
+\texttt{R} -- a $N\times N \times M$ array collecting the starting values of the regime-dependent correlation matrices $\mathbf{R}_{s_t}$.
+\texttt{PR\_TR}  -- a $M\times M$ matrix of the starting values for the transition probabilities matrix $\mathbf{P}$.
+\texttt{w} -- a $d\times 1$ matrix of the starting values for the unrestricted elements of the transition probabilities matrix $\mathbf{w}$.
+\texttt{G} -- a positive integer number specifying the size of the grid, $G$, for the Griddy Gibbs sampler for parameters $\sigma_{s_t}$ and $\mathbf{R}_{s_t}$.
+\\
+&\\
+\texttt{debug}& A logical value set by default to \texttt{FALSE}. If the argument is set to \texttt{TRUE} the algorithm displays information regarding the subsequent steps within each of the iteration corresponding to the groups of parameters being sampled. If the argument is set to \texttt{FALSE} the algorithm does not display such information. \\
+&\\
+\texttt{print.iterations}& An integer specifying how often should the algorithm's iteration count be displayed.
+\end{tabular}
+\end{quote}
+
+\bigskip\noindent\textbf{Value}
+\begin{quote}
+A list with the following arguments:
+
+\smallskip\begin{tabular}{p{3cm}p{10cm}}
+\texttt{posteriors} & A list containing draws from the posterior distribution of the parameters. It consists of the following elements \texttt{Beta}, \texttt{Sigma}, \texttt{S}, \texttt{R}, \texttt{PR\_TR}, \texttt{w}, \texttt{S.t}, \texttt{F.S.t}, \texttt{F.Y } that are described below.
+\linebreak
+\texttt{Beta} -- a $(N+pN^2)\times M \times \mathtt{N}$ array of the posterior draws of parameters $\beta_{s_t}$.
+\texttt{Sigma} -- a $N^2\times M \times \mathtt{N}$ array of the posterior draws of parameters $\text{vec}(\Sigma_{s_t})$.
+\texttt{S}  -- a $N\times M \times \mathtt{N}$ array of the posterior draws of parameters $\sigma_{s_t}$.
+\texttt{R} -- a $(N-1)N/2\times M \times \mathtt{N}$ array of the posterior draws of parameters $\text{vecl}(\mathbf{R}_{s_t})$.
+\texttt{PR\_TR} -- a $M^2 \times \mathtt{N}$ matrix of the posterior draws of parameters $\mathbf{p}$.
+\texttt{w} -- a $d \times \mathtt{N}$ matrix of the posterior draws of parameters $\mathbf{w}$.
+\texttt{S.t} -- a $T \times \mathtt{N}$ matrix of the posterior realizations of the Markov process $\mathbf{S}$.
+\texttt{F.S.t} -- a $\mathtt{h} \times \mathtt{N}$ matrix of draws of the forecasted states.
+\texttt{F.Y } -- a $\mathtt{h} \times N \times \mathtt{N}$ matrix of draws of the forecasted values of $y_t$.
+\\
+&\\
+\texttt{last.draws} & A list containing the draws from the last iteration of the algorithm. This object can be delivered as a starting value for a new run of the MCMC algorithm in order to continue the chain. It consists of the following elements 
+\texttt{Y}, \texttt{U}, \texttt{xi}, \texttt{Beta}, \texttt{Beta.0}, \texttt{Beta.St}, \texttt{Sigma}, \texttt{PR\_TR}, \texttt{w}, \texttt{S}, \texttt{R}, \texttt{G} which definitions are identical to the elements of object \texttt{starting.values}.
+\end{tabular}
+\end{quote}
+
+
+\newpage\noindent\textbf{Authors}
+\begin{quote}
+Matthieu Droumaguet and Tomasz Wo\'zniak
+\end{quote}
+
+
+\bigskip
+\noindent\textbf{References}
+\begin{quote}
+\noindent Droumaguet, M., Warne, A., Wo\'zniak, T. (in press) Granger Causality and Regime Inference in Markov-Switching VAR Models with Bayesian Methods, \emph{Journal of Applied Econometrics}.
+
+\smallskip\noindent Droumaguet, M., Wo\'zniak, T. (2012). Bayesian Testing of Granger Causality in Markov-Switching VARs, \emph{European University Institute Florence Working Paper Series}, \textbf{2012/06}, Italy.
+\end{quote}
+
+
+
+
+
+
+
+%\newpage
+\vspace{1.5cm}
+\begin{center}
+\rule{15cm}{.1pt}\\
+
+\bigskip\begin{tabular}{p{3.5cm} l}
+\texttt{G.MHM.MSVAR} & \textit{Marginal Data Density for MS-VAR models} 
+\end{tabular}
+
+\smallskip
+\rule{15cm}{.1pt}
+\end{center}
+
+\bigskip\noindent\textbf{Description}
+\begin{quote}
+Estimates the marginal data density for MS($M$)VAR($p$) models with the estimator of \cite{Geweke1999,Geweke2005}.
+\end{quote}
+
+
+\bigskip\noindent\textbf{Usage}
+\begin{quote}
+\begin{verbatim}
+G.MHM.MSVAR(Gibbs.output, priors, restrictions, alpha, debug=FALSE, print.iterations=100)
+\end{verbatim}
+\end{quote}
+
+\bigskip\noindent\textbf{Arguments}
+\begin{quote}
+\begin{tabular}{p{3cm}p{10cm}}
+\texttt{Gibbs.output} & A list. An output of the estimation procedure in \texttt{G.MSBVAR.griddy}.\\
+&\\
+\texttt{priors} & A list. The same as argument \texttt{priors} from \texttt{G.MSBVAR.griddy}. \\
+&\\
+\texttt{restrictions} & A list. The same as argument \texttt{restrictions} from \texttt{G.MSBVAR.griddy}. \\
+&\\
+\texttt{alpha} & A scalar of value in $(0,1)$. Truncation probability of the normal distribution from the Modified Harmonic Mean estimator. \\
+&\\
+\texttt{debug} & A logical value set by default to \texttt{FALSE}. If the argument is set to \texttt{TRUE} the algorithm displays information regarding the subsequent steps within each of the iteration corresponding to the groups of parameters being sampled. If the argument is set to \texttt{FALSE} the algorithm does not display such information. \\
+&\\
+\texttt{print.iterations} & An integer specifying how often should the algorithm's iteration count be displayed. 
+\end{tabular}
+\end{quote}
+
+
+
+
+
+\newpage\noindent\textbf{Value}
+
+\begin{quote}
+\begin{tabular}{p{3cm}p{10cm}}
+\texttt{MHM} & A scalar with the estimate of the natural logarithm of the marginal data density. \\
+&\\
+\texttt{acceptance.rate} & A scalar with the acceptance rate of the draws from the posterior distribution that are used for the marginal data density estimation. The rejections are due to the truncation rate specific for the Geweke (1999,2005) estimator (with tail probability \texttt{alpha})  as well as due to the intractable values of the likelihood function evaluated at the draws. \\
+\texttt{alpha} & A scalar of value in $(0,1)$ reporting the value of the argument \texttt{alpha} of the function.\\
+&\\
+\texttt{log.likelihood} & A $\mathtt{N}$-vector containing the values of the ordinates of the log-likelihood function at the posterior draws. \\
+&\\
+\texttt{log.prior} & A $\mathtt{N}$-vector containing the values of the ordinates of the natural logarithm of the prior distribution at the posterior draws. \\
+&\\
+\texttt{log.truncated.normal} & A $\mathtt{N}$-vector containing the values of the ordinates of the natural logarithm of the truncated normal distribution (with the mean set to the posterior mean of the parameters and the covariance matrix set to the posterior covariance matrix of the parameter vector and truncated symmetrically from both sides with probability \texttt{N}/2) evaluated at the posterior draws.\\
+&\\
+\texttt{posterior.draws} & A $k\times \mathtt{N}$ matrix with the posterior draws of the parameters. $k$ denotes the overall number of the parameters of the model.
+\end{tabular}
+\end{quote}
+
+\bigskip\noindent\textbf{Authors}
+\begin{quote}
+Matthieu Droumaguet and Tomasz Wo\'zniak
+\end{quote}
+
+
+\bigskip\noindent\textbf{References}
+\begin{quote}
+
+\noindent Droumaguet, M., Warne, A., Wo\'zniak, T. (in press) Granger Causality and Regime Inference in Markov-Switching VAR Models with Bayesian Methods, \emph{Journal of Applied Econometrics}.
+
+\smallskip\noindent Droumaguet, M., Wo\'zniak, T. (2012). Bayesian Testing of Granger Causality in Markov-Switching VARs, \emph{European University Institute Florence Working Paper Series}, \textbf{2012/06}, Italy.
+
+
+\smallskip\noindent Geweke, J. (1999). Using Simulation Methods for Bayesian Econometric Models: Inference, Development, and Communication. \emph{Econometric Reviews}, \textbf{18}, 1-73.
+
+\smallskip\noindent Geweke, J. (2005). Contemporary Bayesian Econometrics and Statistics. John Wiley \& Sons, Inc.
+
+\end{quote}
+
+
+
+
+
+
+
+
+
+
+\end{document}
