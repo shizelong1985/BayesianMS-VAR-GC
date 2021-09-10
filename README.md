@@ -13,7 +13,7 @@ To refer to the codes in publications, please, cite the following paper:
 
 The project's file structure includes:
 
-- `BayesianMSVAR.pdf` - a document presenting the model, main functions, and their application
+- [`BayesianMSVAR.pdf`](https://github.com/donotdespair/BayesianMS-VAR-GC/blob/master/BayesianMSVAR.pdf) - a document presenting the model, main functions, and their application
 - `BayesianMSVAR-example.R` - a file presenting code application for a simple example
 - `BayesianMSVAR` - a folder containing the functions for the estimation of the considered models
 - `ReproductionScripts` - a folder containing scripts for the reproduction of all the results contained in the JAE paper
